@@ -32,14 +32,14 @@ namespace CoffeeShop.Controllers
 
         [HttpGet]
         public async Task<IActionResult> Get(
-            [FromQuery] string beanType, 
-            [FromQuery] int id,
-            [FromQuery] string sortBy,
+            [FromQuery] string beanType,
             [FromQuery] string title
+
             )
         {
             if (beanType == null) beanType = "";
             if (title == null) title = "";
+
 
             using (SqlConnection conn = Connection)
             {
@@ -48,7 +48,11 @@ namespace CoffeeShop.Controllers
                 {
                     cmd.CommandText = @"
                         SELECT Id, Title, BeanType FROM Coffee
-                        WHERE BeanType = '%' + @beanType  = '%' AND Title = @title";
+                        WHERE BeanType LIKE '%' + @beanType + '%'
+                        AND Title LIKE '%' + @title + '%'";
+                    cmd.Parameters.Add(new SqlParameter("@beanType", beanType));
+                    cmd.Parameters.Add(new SqlParameter("@title", title));
+
                     SqlDataReader reader = await cmd.ExecuteReaderAsync();
                     List<Coffee> coffees = new List<Coffee>();
 
@@ -133,7 +137,7 @@ namespace CoffeeShop.Controllers
         }
 
 
-        [HttpPut("{id")]
+        [HttpPut("{id}")]
         public async Task<IActionResult> Put([FromRoute] int id, [FromBody] Coffee coffee)
         {
             try
@@ -141,7 +145,7 @@ namespace CoffeeShop.Controllers
                 using (SqlConnection conn = Connection)
                 {
                     await conn.OpenAsync();
-                    using (SqlCommand cmd = Connection.CreateCommand())
+                    using (SqlCommand cmd = conn.CreateCommand())
                     {
                         cmd.CommandText = @"UPDATE Coffee
                                             SET Title = @title
@@ -174,15 +178,15 @@ namespace CoffeeShop.Controllers
             }
         }
 
-        [HttpDelete("{id")]
+        [HttpDelete("{id}")]
         public async Task<IActionResult> Delete([FromRoute] int id)
         {
             try
             {
-                using (Connection)
+                using (SqlConnection conn = Connection)
                 {
-                    await Connection.OpenAsync();
-                    using (SqlCommand cmd = Connection.CreateCommand())
+                    await conn.OpenAsync();
+                    using (SqlCommand cmd = conn.CreateCommand())
                     {
                         cmd.CommandText = @"DELETE FROM Coffee WHERE Id = @id";
                         cmd.Parameters.Add(new SqlParameter("@id", id));
@@ -213,10 +217,10 @@ namespace CoffeeShop.Controllers
 
         private bool CoffeeExists(int id)
         {
-            using (Connection)
+            using (SqlConnection conn =Connection)
             {
-                Connection.Open();
-                using (SqlCommand cmd = Connection.CreateCommand())
+                conn.Open();
+                using (SqlCommand cmd = conn.CreateCommand())
                 {
                     cmd.CommandText = @"SELECT Id, Title, BeanType
                                             FROM Coffee
