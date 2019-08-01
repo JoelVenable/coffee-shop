@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
+using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using CoffeeShop.Models;
@@ -30,14 +31,24 @@ namespace CoffeeShop.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Get()
+        public async Task<IActionResult> Get(
+            [FromQuery] string beanType, 
+            [FromQuery] int id,
+            [FromQuery] string sortBy,
+            [FromQuery] string title
+            )
         {
+            if (beanType == null) beanType = "";
+            if (title == null) title = "";
+
             using (SqlConnection conn = Connection)
             {
                 conn.Open();
                 using (SqlCommand cmd = conn.CreateCommand())
                 {
-                    cmd.CommandText = "SELECT Id, Title, BeanType FROM Coffee";
+                    cmd.CommandText = @"
+                        SELECT Id, Title, BeanType FROM Coffee
+                        WHERE BeanType = '%' + @beanType  = '%' AND Title = @title";
                     SqlDataReader reader = await cmd.ExecuteReaderAsync();
                     List<Coffee> coffees = new List<Coffee>();
 
@@ -81,7 +92,7 @@ namespace CoffeeShop.Controllers
                             BeanType = reader.GetString(reader.GetOrdinal("BeanType"))
                         };
 
-                       
+
                     }
                     reader.Close();
 
@@ -92,5 +103,129 @@ namespace CoffeeShop.Controllers
             }
         }
 
+        [HttpPost]
+        public async Task<IActionResult> Post([FromBody] Coffee coffee)
+        {
+            using (SqlConnection conn = Connection)
+            {
+                conn.Open();
+                using (SqlCommand cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"INSERT INTO Coffee (Title, BeanType)
+                                        OUTPUT INSERTED.Id
+                                        VALUES (@title, @beanType)";
+                    cmd.Parameters.Add(new SqlParameter("@title", coffee.Title));
+                    cmd.Parameters.Add(new SqlParameter("@beanType", coffee.BeanType));
+
+                    try
+                    {
+                        int newId = (int)await cmd.ExecuteScalarAsync();
+                        coffee.Id = newId;
+                        return CreatedAtRoute("GetCoffee", new { id = newId });
+                    }
+                    catch (Exception ex)
+                    {
+                        return StatusCode(500, $"An error occurred: \n{ex.Message}");
+                    }
+
+                }
+            }
+        }
+
+
+        [HttpPut("{id")]
+        public async Task<IActionResult> Put([FromRoute] int id, [FromBody] Coffee coffee)
+        {
+            try
+            {
+                using (SqlConnection conn = Connection)
+                {
+                    await conn.OpenAsync();
+                    using (SqlCommand cmd = Connection.CreateCommand())
+                    {
+                        cmd.CommandText = @"UPDATE Coffee
+                                            SET Title = @title
+                                                BeanType = @beanType
+                                            WHERE Id = @id";
+                        cmd.Parameters.Add(new SqlParameter("@title", coffee.Title));
+                        cmd.Parameters.Add(new SqlParameter("@beanType", coffee.BeanType));
+                        cmd.Parameters.Add(new SqlParameter("@id", coffee.Id));
+
+                        int rowsAffected = await cmd.ExecuteNonQueryAsync();
+                        if (rowsAffected > 0)
+                        {
+                            return new StatusCodeResult(StatusCodes.Status204NoContent);
+                        }
+                        throw new Exception("No rows affected.");
+
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                if (!CoffeeExists(id))
+                {
+                    return NotFound();
+                }
+                else
+                {
+                    throw;
+                }
+            }
+        }
+
+        [HttpDelete("{id")]
+        public async Task<IActionResult> Delete([FromRoute] int id)
+        {
+            try
+            {
+                using (Connection)
+                {
+                    await Connection.OpenAsync();
+                    using (SqlCommand cmd = Connection.CreateCommand())
+                    {
+                        cmd.CommandText = @"DELETE FROM Coffee WHERE Id = @id";
+                        cmd.Parameters.Add(new SqlParameter("@id", id));
+
+                        int rowsAffected = await cmd.ExecuteNonQueryAsync();
+                        if (rowsAffected > 0)
+                        {
+                            return new StatusCodeResult(StatusCodes.Status204NoContent);
+                        }
+                        throw new Exception("No rows affected");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (!CoffeeExists(id))
+                {
+                    return NotFound();
+                }
+                else
+                {
+                    throw;
+                }
+            }
+        }
+
+
+
+        private bool CoffeeExists(int id)
+        {
+            using (Connection)
+            {
+                Connection.Open();
+                using (SqlCommand cmd = Connection.CreateCommand())
+                {
+                    cmd.CommandText = @"SELECT Id, Title, BeanType
+                                            FROM Coffee
+                                            WHERE Id = @id";
+                    cmd.Parameters.Add(new SqlParameter("@id", id));
+                    SqlDataReader reader = cmd.ExecuteReader();
+                    return reader.Read();
+                }
+            }
+        }
     }
 }
