@@ -74,8 +74,8 @@ namespace CoffeeShop.Controllers
             }
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetById([FromRoute] int id)
+        [HttpGet("{id}", Name = "GetCoffee")]
+        public async Task<IActionResult> Get([FromRoute] int id)
         {
             using (SqlConnection conn = Connection)
             {
@@ -123,13 +123,15 @@ namespace CoffeeShop.Controllers
 
                     try
                     {
-                        int newId = (int)await cmd.ExecuteScalarAsync();
+                        var result = await cmd.ExecuteScalarAsync();
+                        int newId = (int)result;
                         coffee.Id = newId;
-                        return CreatedAtRoute("GetCoffee", new { id = newId });
+                        return CreatedAtRoute("GetCoffee", new { id = newId }, null);
                     }
                     catch (Exception ex)
                     {
-                        return StatusCode(500, $"An error occurred: \n{ex.Message}");
+                        //return StatusCode(500, $"An error occurred: \n{ex.Message}");
+                        return StatusCode(StatusCodes.Status422UnprocessableEntity);
                     }
 
                 }
@@ -148,12 +150,12 @@ namespace CoffeeShop.Controllers
                     using (SqlCommand cmd = conn.CreateCommand())
                     {
                         cmd.CommandText = @"UPDATE Coffee
-                                            SET Title = @title
+                                            SET Title = @title,
                                                 BeanType = @beanType
                                             WHERE Id = @id";
                         cmd.Parameters.Add(new SqlParameter("@title", coffee.Title));
                         cmd.Parameters.Add(new SqlParameter("@beanType", coffee.BeanType));
-                        cmd.Parameters.Add(new SqlParameter("@id", coffee.Id));
+                        cmd.Parameters.Add(new SqlParameter("@id", id));
 
                         int rowsAffected = await cmd.ExecuteNonQueryAsync();
                         if (rowsAffected > 0)
